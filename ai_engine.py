@@ -5,7 +5,7 @@ from langchain_community.llms import HuggingFaceHub
 from langchain_core.prompts import PromptTemplate
 
 def initialize_database_if_not_exists():
-    """التحقق من وجود قاعدة البيانات وضخ بيانات الطلاب تلقائياً."""
+    """Initializes the SQLite database with English records for 20 students."""
     db_name = "university.db"
     if os.path.exists(db_name):
         return
@@ -14,6 +14,7 @@ def initialize_database_if_not_exists():
     cursor = conn.cursor()
     cursor.execute("PRAGMA foreign_keys = ON;")
 
+    # Create Tables
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Departments (
         department_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,21 +52,22 @@ def initialize_database_if_not_exists():
     );
     """)
 
-    departments = [("ذكاء اصطناعي",), ("علوم حاسوب",), ("هندسة برمجيات",)]
+    # Populate English Data
+    departments = [("AI",), ("Computer Science",), ("Software Engineering",)]
     cursor.executemany("INSERT INTO Departments (department_name) VALUES (?);", departments)
 
     courses = [
-        ("مقدمة في الذكاء الاصطناعي", 3),
-        ("هياكل البيانات والخوارزميات", 4),
-        ("قواعد البيانات", 3),
-        ("تحليل وتصميم النظم", 3)
+        ("Intro to AI", 3),
+        ("Data Structures", 4),
+        ("Databases", 3),
+        ("Systems Analysis", 3)
     ]
     cursor.executemany("INSERT INTO Courses (course_name, credit_hours) VALUES (?, ?);", courses)
 
     students = [
-        ("أحمد الماجد", 1), ("سارة العلي", 1), ("خالد الشمري", 1), ("ريم القحطاني", 1), ("عمر الفاروق", 1), ("فاطمة الزهراء", 1), ("زياد الحربي", 1),
-        ("محمد العتيبي", 2), ("نورة الدوسري", 2), ("عبد الله الشهري", 2), ("هند الفهد", 2), ("سلطان المطيري", 2), ("منى التميمي", 2),
-        ("فيصل السديري", 3), ("أمل العبد الله", 3), ("سعود المشعل", 3), ("شهد السالم", 3), ("حسن اليوسف", 3), ("رنا الجابر", 3), ("طارق العيسى", 3)
+        ("Ahmed Al-Majed", 1), ("Sara Al-Ali", 1), ("Khaled Al-Shammari", 1), ("Reem Al-Qahtani", 1), ("Omar Al-Farooq", 1), ("Fatima Al-Zahra", 1), ("Ziad Al-Harbi", 1),
+        ("Mohammed Al-Otaibi", 2), ("Noura Al-Dossari", 2), ("Abdullah Al-Shehri", 2), ("Hind Al-Fahad", 2), ("Sultan Al-Mutairi", 2), ("Mona Al-Tamimi", 2),
+        ("Faisal Al-Sudairy", 3), ("Amal Abdullah", 3), ("Saud Al-Meshal", 3), ("Shahad Al-Salem", 3), ("Hassan Al-Youssef", 3), ("Rana Al-Jaber", 3), ("Tarek Al-Eissa", 3)
     ]
     cursor.executemany("INSERT INTO Students (student_name, department_id) VALUES (?, ?);", students)
 
@@ -89,7 +91,7 @@ def initialize_database_if_not_exists():
     conn.close()
 
 def get_llm_engine():
-    """تأمين قراءة المفتاح المشفر الجديد وتمريره لمحرك الاستدلال."""
+    """Initializes HuggingFaceHub Inference Client."""
     token = os.environ.get("HF_TOKEN")
     if not token:
         try:
@@ -100,7 +102,7 @@ def get_llm_engine():
             pass
         
     if not token:
-        raise ValueError("⚠️ لم يتم العثور على مفتاح 'HF_TOKEN' في الإعدادات السحابية.")
+        raise ValueError("Token HF_TOKEN not found.")
 
     os.environ["HUGGINGFACEHUB_API_TOKEN"] = token
     return HuggingFaceHub(
@@ -110,14 +112,14 @@ def get_llm_engine():
     )
 
 def generate_sql_query(user_question):
-    """توليد كود SQL نقي ومعالجة نصوص الاستجابة بدقة."""
+    """Generates a strict and clean SQL query from English text input."""
     initialize_database_if_not_exists()
     llm = get_llm_engine()
 
-    prompt_template = """You are a Text-to-SQL translator. Convert the Arabic question into a single executable SQLite query.
-Output ONLY the raw SQL code. No markdown code blocks, no explanation.
+    prompt_template = """You are a precise text-to-SQL translator. Convert the user's question into a valid, executable SQLite query.
+Output ONLY the raw SQL code. No markdown blocks, no commentary, no triple backticks.
 
-Database Tables:
+Database Tables and Columns:
 1. Departments: department_id, department_name
 2. Students: student_id, student_name, department_id
 3. Courses: course_id, course_name, credit_hours
@@ -129,18 +131,17 @@ SQL:"""
     prompt = PromptTemplate(input_variables=["question"], template=prompt_template)
     raw_response = llm.invoke(prompt.format(question=user_question))
     
-    # تنظيف النص الراجع بشكل صارم
-    cleaned_text = raw_response.strip()
-    
-    if "```sql" in cleaned_text:
-        cleaned_text = cleaned_text.split("```sql")[-1].split("```")[0].strip()
-    elif "```" in cleaned_text:
-        cleaned_text = cleaned_text.split("```")[1].strip()
+    # Clean output strictly
+    sql_query = raw_response.strip()
+    if "```sql" in sql_query:
+        sql_query = sql_query.split("```sql")[-1].split("```")[0].strip()
+    elif "```" in sql_query:
+        sql_query = sql_query.split("```")[1].strip()
 
-    if "SELECT" in cleaned_text:
-        cleaned_text = "SELECT" + cleaned_text.split("SELECT", 1)[1]
+    if "SELECT" in sql_query:
+        sql_query = "SELECT" + sql_query.split("SELECT", 1)[1]
 
-    sql_query = cleaned_text.split("\n")[0].strip()
+    sql_query = sql_query.split("\n")[0].strip()
     
     if sql_query.endswith(";"):
         sql_query = sql_query[:-1].strip()
