@@ -1,33 +1,25 @@
-# 🗂️ مساعد قواعد البيانات الذكي الفصيح (Text-to-SQL Application)
 
-مشروع تخرج تطبيقي متكامل يعتمد على تقنيات **هندسة الأوامر (Prompt Engineering)** ونماذج لغات الذكاء الاصطناعي الكبيرة (LLMs) السحابية لتحويل الأسئلة المكتوبة باللغة العربية الفصحى إلى استعلامات قواعد بيانات نحوية وصارمة من نوع `SQLite` وتنفيذها تلقائياً وعرض النتائج تفاعلياً.
+# 💬 Text to SQL Converter
 
----
+A simple educational application that converts natural language questions to SQL queries using **Streamlit** and **Google Gemini AI**.
 
-## 🚀 مميزات المشروع (Key Features)
+## ✨ Features
 
-* **دعم كامل للفصحى (Arabic Natural Language):** تحليل وفهم الأسئلة الأكاديمية المعقدة المكتوبة باللغة العربية وتحويلها إلى كود برمي نقي.
-* **محرك سحابي متطور:** الاستعانة بنموذج `Qwen2.5-Coder-7B-Instruct` المخصص للأكواد عبر بيئة الاستدعاء السحابية لـ `HuggingFaceHub`.
-* **بناء قواعد بيانات ذاتي (Self-Initializing Database):** بمجرد تشغيل السيرفر، يقوم النظام تلقائياً بإنشاء قاعدة بيانات جامعية (University DB) وتغذيتها ببيانات **20 طالباً** موزعين على 4 جداول مترابطة بعلاقات ومفاتيح أجنبية (Foreign Keys) صارمة لضمان استقرار السيرفر.
-* **واجهة مستخدم تفاعلية (RTL Layout):** واجهة رسومية سحابية مبنية بأداة `Streamlit` تدعم اتجاه الخط العربي من اليمين إلى اليسار مع لوحة جانبية تشرح بنية البيانات للمستخدم.
-* **نظام معالجة أخطاء ذكي:** اعتراض الأخطاء النحوية أو الحسابية وعرض رسائل توجيهية فصيحة بدلاً من انهيار التطبيق.
+- 🎯 Convert English questions to correct SQL queries
+- 🗄️ Embedded SQLite database with sample data
+- 📊 Beautiful table display for results
+- 🔒 Secure API key management using `.env`
+- 🎨 User-friendly interface
+- 🎲 Random example questions
 
----
+## 📋 Requirements
 
-## 📊 بنية قاعدة البيانات (Database Schema)
+- Python 3.8 or higher
+- Google account for Gemini API key
 
-يتعامل المحرك مع 4 جداول أكاديمية مترابطة:
-1. **Departments (الأقسام):** تخصصات (ذكاء اصطناعي، علوم حاسوب، هندسة برمجيات).
-2. **Students (الطلاب):** أسماء وبيانات الطلاب والربط بأقسامهم.
-3. **Courses (المواد الدراسية):** المواد والساعات المعتمدة.
-4. **Enrollments (الدرجات والتسجيل):** الدرجات الرقمية والتقديرات الحرفية لضمان دقة عمليات البحث والاستعلام.
+## 🚀 How to Run
 
----
-
-## 🛠️ هيكلية الملفات (Project Structure)
-
-```text
-├── .gitignore          # حماية مكونات الأمان لمنع رفع قاعدة البيانات المحلية أو الأسرار السحابية
-├── requirements.txt    # ملف حزم المكتبات الخارجية المطلوبة للتشغيل السحابي
-├── ai_engine.py        # المحرك البرمي وقالب الأوامر (Prompt) واستدعاء نموذج الذكاء الاصطناعي
-└── app.py              # ملف واجهة المستخدم الرسومية وإدارة أحداث الاستعلام والتنفيذ
+### 1. Clone the Project
+```bash
+git clone https://github.com/username/text_to_sql_project.git
+cd text_to_sql_project
