@@ -5,7 +5,7 @@ from langchain_community.llms import HuggingFaceHub
 from langchain_core.prompts import PromptTemplate
 
 def initialize_database_if_not_exists():
-    """التحقق من وجود قاعدة البيانات وضخ بيانات 20 طالباً."""
+    """التحقق من وجود قاعدة البيانات وضخ بيانات الطلاب تلقائياً."""
     db_name = "university.db"
     if os.path.exists(db_name):
         return
@@ -89,7 +89,7 @@ def initialize_database_if_not_exists():
     conn.close()
 
 def get_llm_engine():
-    """تهيئة محرك الاستدلال لـ HuggingFaceHub وفقاً لآخر التحديثات."""
+    """تأمين قراءة المفتاح المشفر الجديد وتمريره لمحرك الاستدلال."""
     token = os.environ.get("HF_TOKEN")
     if not token:
         try:
@@ -100,7 +100,7 @@ def get_llm_engine():
             pass
         
     if not token:
-        raise ValueError("⚠️ لم يتم العثور على مفتاح 'HF_TOKEN'.")
+        raise ValueError("⚠️ لم يتم العثور على مفتاح 'HF_TOKEN' في الإعدادات السحابية.")
 
     os.environ["HUGGINGFACEHUB_API_TOKEN"] = token
     return HuggingFaceHub(
@@ -110,13 +110,12 @@ def get_llm_engine():
     )
 
 def generate_sql_query(user_question):
-    """توليد كود SQL نقي وصارم متوافق مع استعلامات قاعدة بيانات الجامعة."""
+    """توليد كود SQL نقي ومعالجة نصوص الاستجابة بدقة."""
     initialize_database_if_not_exists()
     llm = get_llm_engine()
 
-    # قالب أوامر مبسط وصارم ومكتوب باللغة الإنجليزية لضمان عدم تخريف مخرجات النموذج
-    prompt_template = """You are a text-to-SQL translator. Convert the Arabic question into a single raw SQLite query.
-Do not include markdown blocks, explanation, or HTML.
+    prompt_template = """You are a Text-to-SQL translator. Convert the Arabic question into a single executable SQLite query.
+Output ONLY the raw SQL code. No markdown code blocks, no explanation.
 
 Database Tables:
 1. Departments: department_id, department_name
@@ -124,29 +123,25 @@ Database Tables:
 3. Courses: course_id, course_name, credit_hours
 4. Enrollments: enrollment_id, student_id, course_id, grade_numeric, grade_letter
 
-Example:
-Question: كم عدد الطلاب في قسم علوم حاسوب؟
-SQL: SELECT COUNT(*) FROM Students WHERE department_id = (SELECT department_id FROM Departments WHERE department_name = 'علوم حاسوب');
-
 Question: {question}
 SQL:"""
 
     prompt = PromptTemplate(input_variables=["question"], template=prompt_template)
     raw_response = llm.invoke(prompt.format(question=user_question))
     
-    # آلية تنظيف برمجية صارمة للتخلص من الأقواس وعلامات الاقتباس المائلة الناتجة عن النماذج السحابية
-    sql_query = raw_response.strip()
+    # تنظيف النص الراجع بشكل صارم
+    cleaned_text = raw_response.strip()
     
-    # إذا قام النموذج بوضع مخرجاته داخل بلوك كود مائل يتم قصه فوراً
-    if "```sql" in sql_query:
-        sql_query = sql_query.split("```sql")[-1].split("```")[0].strip()
-    elif "```" in sql_query:
-        sql_query = sql_query.split("```")[1].strip()
-        
-    # إزالة أي نصوص زائدة قد يضيفها النموذج في السطر الجديد
-    sql_query = sql_query.split("\n")[0].strip()
+    if "```sql" in cleaned_text:
+        cleaned_text = cleaned_text.split("```sql")[-1].split("```")[0].strip()
+    elif "```" in cleaned_text:
+        cleaned_text = cleaned_text.split("```")[1].strip()
+
+    if "SELECT" in cleaned_text:
+        cleaned_text = "SELECT" + cleaned_text.split("SELECT", 1)[1]
+
+    sql_query = cleaned_text.split("\n")[0].strip()
     
-    # إزالة الفاصلة المنقوطة إن وجدت لتجنب أخطاء برامج القراءة
     if sql_query.endswith(";"):
         sql_query = sql_query[:-1].strip()
         
