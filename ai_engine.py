@@ -1,5 +1,6 @@
 import os
 import sqlite3
+from importlib import import_module # تم إضافة هذا السطر البرمجي لإصلاح الخطأ السحابي
 from langchain_community.llms import HuggingFaceHub
 from langchain_core.prompts import PromptTemplate
 
@@ -68,13 +69,12 @@ def initialize_database_if_not_exists():
 
     students = [
         ("أحمد الماجد", 1), ("سارة العلي", 1), ("خالد الشمري", 1), ("ريم القحطاني", 1), ("عمر الفاروق", 1), ("فاطمة الزهراء", 1), ("زياد الحربي", 1),
-        ("محمد العتيبي", 2), ("نورة الدوسري", 2), ("عبد الله الشهري", 2), ("هند الفهد", 2), ("sultan المطيري", 2), ("منى التميمي", 2),
+        ("محمد العتيبي", 2), ("نورة الدوسري", 2), ("عبد الله الشهري", 2), ("هند الفهد", 2), ("سلطان المطيري", 2), ("منى التميمي", 2),
         ("فيصل السديري", 3), ("أمل العبد الله", 3), ("سعود المشعل", 3), ("شهد السالم", 3), ("حسن اليوسف", 3), ("رنا الجابر", 3), ("طارق العيسى", 3)
     ]
     cursor.executemany("INSERT INTO Students (student_name, department_id) VALUES (?, ?);", students)
 
     enrollments = [
-        # توزيع الدرجات: درجات متميزة، متوسطة، وحالات رسوب لضمان دقة الاستعلام والبحث
         (1, 1, 95.5, "A"), (1, 3, 92.0, "A"),
         (2, 1, 98.0, "A"), (2, 2, 94.0, "A"),
         (8, 2, 91.5, "A"), (14, 4, 96.0, "A"),
@@ -97,8 +97,12 @@ def get_llm_engine():
     """استدعاء المفتاح الرقمي بأمان وتشغيل نموذج كود كوين السحابي المتخصص."""
     token = os.environ.get("HF_TOKEN")
     if not token:
-        import streamlit as st
-        token = st.secrets.get("HF_TOKEN")
+        try:
+            streamlit_mod = import_module("streamlit")
+            if hasattr(streamlit_mod, "secrets") and "HF_TOKEN" in streamlit_mod.secrets:
+                token = streamlit_mod.secrets["HF_TOKEN"]
+        except ImportError:
+            pass
         
     if not token:
         raise ValueError("⚠️ لم يتم العثور على مفتاح 'HF_TOKEN' في الإعدادات السحابية المحمية.")
@@ -114,7 +118,6 @@ def generate_sql_query(user_question):
     initialize_database_if_not_exists()
     llm = get_llm_engine()
 
-    # صياغة قالب الأوامر الصارم (Few-Shot Prompting) باللغة العربية الفصحى
     prompt_template = """Analyse the user question and convert it into a valid SQLite query based on the following database schema. Return only the SQL query, without markdown or formatting.
 
     Database Schema:
@@ -127,16 +130,12 @@ def generate_sql_query(user_question):
     Question: كم عدد الطلاب في قسم علوم حاسوب؟
     SQL: SELECT COUNT(*) FROM Students WHERE department_id = (SELECT department_id FROM Departments WHERE department_name = 'علوم حاسوب');
 
-    Question: أعطني أسماء الطلاب الذين حصلوا على التقدير A في مادة قواعد البيانات.
-    SQL: SELECT s.student_name FROM Students s JOIN Enrollments e ON s.student_id = e.student_id JOIN Courses c ON e.course_id = c.course_id WHERE c.course_name = 'قواعد البيانات' AND e.grade_letter = 'A';
-
     User Question: {question}
     SQL:"""
 
     prompt = PromptTemplate(input_variables=["question"], template=prompt_template)
     raw_response = llm.invoke(prompt.format(question=user_question))
     
-    # تنظيف مخرجات النموذج لضمان كود SQL نقي وجاهز للتنفيذ
     sql_query = raw_response.strip()
     if "```sql" in sql_query:
         sql_query = sql_query.split("```sql")[-1].split("```")[0].strip()
