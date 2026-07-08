@@ -100,7 +100,6 @@ def generate_sql_query(user_question):
     """Generates SQL query using the official huggingface_hub InferenceClient."""
     initialize_database_if_not_exists()
     
-    # Securely fetch token
     token = os.environ.get("HF_TOKEN")
     if not token:
         try:
@@ -113,11 +112,19 @@ def generate_sql_query(user_question):
     if not token:
         raise ValueError("Token HF_TOKEN not found in Streamlit Secrets.")
 
-    # Initialize the official clean client
     client = InferenceClient(token=token)
     
-    prompt = f"""You are a precise text-to-SQL translator. Convert the question into a valid SQLite query starting with SELECT.
-Output ONLY raw SQL. No explanation, no markdown formatting.
+    prompt = f"""You are an expert text-to-SQL translator. Convert the user question (which may be in Arabic or English) into a valid SQLite query that queries the database schema below.
+Important mapping details for text queries:
+- 'AI' corresponds to 'AI' department.
+- 'علوم حاسوب' or 'Computer Science' corresponds to 'Computer Science' department.
+- 'هندسة برمجيات' or 'Software Engineering' corresponds to 'Software Engineering' department.
+- 'مقدمة في الذكاء الاصطناعي' maps to 'Intro to AI'.
+- 'هياكل البيانات' maps to 'Data Structures'.
+- 'قواعد البيانات' maps to 'Databases'.
+- 'تحليل النظم' or 'تحليل النظم' maps to 'Systems Analysis'.
+
+Output ONLY raw SQL starting with SELECT. No markdown, no code blocks, no explanations.
 
 Database Schema:
 - Departments (department_id, department_name)
@@ -128,15 +135,14 @@ Database Schema:
 Question: {user_question}
 SQL:"""
 
-    # Direct cloud inference call
     response = client.text_generation(
         prompt=prompt,
         model="Qwen/Qwen2.5-Coder-7B-Instruct",
-        max_new_tokens=100,
+        max_new_tokens=150,
         temperature=0.1
     )
     
-    # Strict response cleaning
+    # Clean output strictly from any Markdown syntax or newlines
     sql_query = response.strip()
     if "```sql" in sql_query:
         sql_query = sql_query.split("```sql")[-1].split("```")[0].strip()
@@ -146,6 +152,7 @@ SQL:"""
     if "SELECT" in sql_query:
         sql_query = "SELECT" + sql_query.split("SELECT", 1)[1]
 
+    # Normalize trailing elements
     sql_query = sql_query.split("\n")[0].strip()
     if "?" in sql_query:
         sql_query = sql_query.split("?")[0].strip()
