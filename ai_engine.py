@@ -5,16 +5,27 @@ from langchain_community.llms import HuggingFaceHub
 from langchain_core.prompts import PromptTemplate
 
 def initialize_database_if_not_exists():
-    """Initializes the SQLite database with English records for 20 students."""
+    """Initializes the SQLite database with English records if tables do not exist."""
     db_name = "university.db"
-    if os.path.exists(db_name):
-        return
-
+    
+    # Connect and check if tables actually exist inside the DB
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
+    
+    try:
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Students';")
+        table_exists = cursor.fetchone()
+    except sqlite3.Error:
+        table_exists = None
+
+    # If tables already exist, close and skip initialization
+    if table_exists:
+        conn.close()
+        return
+
+    # Enable foreign keys and build schema
     cursor.execute("PRAGMA foreign_keys = ON;")
 
-    # Create Tables
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Departments (
         department_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -52,9 +63,9 @@ def initialize_database_if_not_exists():
     );
     """)
 
-    # Populate English Data
+    # Populate Data strictly in English
     departments = [("AI",), ("Computer Science",), ("Software Engineering",)]
-    cursor.executemany("INSERT INTO Departments (department_name) VALUES (?);", departments)
+    cursor.executemany("INSERT OR IGNORE INTO Departments (department_name) VALUES (?);", departments)
 
     courses = [
         ("Intro to AI", 3),
@@ -62,14 +73,14 @@ def initialize_database_if_not_exists():
         ("Databases", 3),
         ("Systems Analysis", 3)
     ]
-    cursor.executemany("INSERT INTO Courses (course_name, credit_hours) VALUES (?, ?);", courses)
+    cursor.executemany("INSERT OR IGNORE INTO Courses (course_name, credit_hours) VALUES (?, ?);", courses)
 
     students = [
         ("Ahmed Al-Majed", 1), ("Sara Al-Ali", 1), ("Khaled Al-Shammari", 1), ("Reem Al-Qahtani", 1), ("Omar Al-Farooq", 1), ("Fatima Al-Zahra", 1), ("Ziad Al-Harbi", 1),
         ("Mohammed Al-Otaibi", 2), ("Noura Al-Dossari", 2), ("Abdullah Al-Shehri", 2), ("Hind Al-Fahad", 2), ("Sultan Al-Mutairi", 2), ("Mona Al-Tamimi", 2),
         ("Faisal Al-Sudairy", 3), ("Amal Abdullah", 3), ("Saud Al-Meshal", 3), ("Shahad Al-Salem", 3), ("Hassan Al-Youssef", 3), ("Rana Al-Jaber", 3), ("Tarek Al-Eissa", 3)
     ]
-    cursor.executemany("INSERT INTO Students (student_name, department_id) VALUES (?, ?);", students)
+    cursor.executemany("INSERT OR IGNORE INTO Students (student_name, department_id) VALUES (?, ?);", students)
 
     enrollments = [
         (1, 1, 95.5, "A"), (1, 3, 92.0, "A"),
@@ -85,7 +96,7 @@ def initialize_database_if_not_exists():
         (18, 4, 61.0, "D"), (19, 3, 50.0, "F"),
         (20, 4, 55.0, "D")
     ]
-    cursor.executemany("INSERT INTO Enrollments (student_id, course_id, grade_numeric, grade_letter) VALUES (?, ?, ?, ?);", enrollments)
+    cursor.executemany("INSERT OR IGNORE INTO Enrollments (student_id, course_id, grade_numeric, grade_letter) VALUES (?, ?, ?, ?);", enrollments)
     
     conn.commit()
     conn.close()
@@ -117,7 +128,7 @@ def generate_sql_query(user_question):
     llm = get_llm_engine()
 
     prompt_template = """You are a precise text-to-SQL translator. Convert the user's question into a valid, executable SQLite query.
-Output ONLY the raw SQL code. No markdown blocks, no commentary, no triple backticks.
+Output ONLY the raw SQL code starting with SELECT. No markdown code blocks, no commentary, no triple backticks.
 
 Database Tables and Columns:
 1. Departments: department_id, department_name
