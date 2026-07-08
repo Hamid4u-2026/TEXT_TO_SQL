@@ -68,7 +68,7 @@ def initialize_database_if_not_exists():
         ("Databases", 3),
         ("Systems Analysis", 3)
     ]
-    cursor.executemany("INSERT OR IGNORE INTO Courses (course_name, credit_hours) VALUES (?, ?);", courses)
+    cursor.executemany("INSERT OR IGNORE INTO Courses (course_name) VALUES (?, ?);", courses)
 
     students = [
         ("Ahmed Al-Majed", 1), ("Sara Al-Ali", 1), ("Khaled Al-Shammari", 1), ("Reem Al-Qahtani", 1), ("Omar Al-Farooq", 1), ("Fatima Al-Zahra", 1), ("Ziad Al-Harbi", 1),
@@ -97,7 +97,7 @@ def initialize_database_if_not_exists():
     conn.close()
 
 def generate_sql_query(user_question):
-    """Generates SQL query using the official huggingface_hub InferenceClient."""
+    """Generates a perfectly cleaned SQLite query supporting both Arabic and English inputs."""
     initialize_database_if_not_exists()
     
     token = os.environ.get("HF_TOKEN")
@@ -114,17 +114,20 @@ def generate_sql_query(user_question):
 
     client = InferenceClient(token=token)
     
-    prompt = f"""You are an expert text-to-SQL translator. Convert the user question (which may be in Arabic or English) into a valid SQLite query that queries the database schema below.
-Important mapping details for text queries:
-- 'AI' corresponds to 'AI' department.
-- 'علوم حاسوب' or 'Computer Science' corresponds to 'Computer Science' department.
-- 'هندسة برمجيات' or 'Software Engineering' corresponds to 'Software Engineering' department.
-- 'مقدمة في الذكاء الاصطناعي' maps to 'Intro to AI'.
-- 'هياكل البيانات' maps to 'Data Structures'.
-- 'قواعد البيانات' maps to 'Databases'.
-- 'تحليل النظم' or 'تحليل النظم' maps to 'Systems Analysis'.
+    prompt = f"""You are an elite Text-to-SQL translator for an academic SQLite database.
+Convert the user question (which could be in Arabic or English) into a valid, executable SQL query.
 
-Output ONLY raw SQL starting with SELECT. No markdown, no code blocks, no explanations.
+CRITICAL MAPPING RULE:
+- 'AI' or 'ذكاء اصطناعي' -> 'AI'
+- 'Computer Science' or 'علوم حاسوب' -> 'Computer Science'
+- 'Software Engineering' or 'هندسة برمجيات' -> 'Software Engineering'
+- 'Intro to AI' or 'مقدمة في الذكاء الاصطناعي' -> 'Intro to AI'
+- 'Data Structures' or 'هياكل البيانات' -> 'Data Structures'
+- 'Databases' or 'قواعد البيانات' -> 'Databases'
+- 'Systems Analysis' or 'تحليل النظم' -> 'Systems Analysis'
+
+OUTPUT FORMAT:
+Output ONLY the raw SQL code string. Do NOT enclose it in markdown blocks (no ```sql), no commentary, no explanations. It must start directly with SELECT.
 
 Database Schema:
 - Departments (department_id, department_name)
@@ -138,11 +141,11 @@ SQL:"""
     response = client.text_generation(
         prompt=prompt,
         model="Qwen/Qwen2.5-Coder-7B-Instruct",
-        max_new_tokens=150,
+        max_new_tokens=100,
         temperature=0.1
     )
     
-    # Clean output strictly from any Markdown syntax or newlines
+    # Advanced strict cleaning for query execution safety
     sql_query = response.strip()
     if "```sql" in sql_query:
         sql_query = sql_query.split("```sql")[-1].split("```")[0].strip()
@@ -152,7 +155,6 @@ SQL:"""
     if "SELECT" in sql_query:
         sql_query = "SELECT" + sql_query.split("SELECT", 1)[1]
 
-    # Normalize trailing elements
     sql_query = sql_query.split("\n")[0].strip()
     if "?" in sql_query:
         sql_query = sql_query.split("?")[0].strip()
