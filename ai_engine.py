@@ -6,9 +6,9 @@ from langchain_core.prompts import PromptTemplate
 
 def initialize_database_if_not_exists():
     """Initializes the SQLite database with English records if tables do not exist."""
-    db_name = "university.db"
+    # Changed DB name to force creating a new fresh file on Streamlit Cloud
+    db_name = "university_v2.db"
     
-    # Connect and check if tables actually exist inside the DB
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
     
@@ -18,12 +18,10 @@ def initialize_database_if_not_exists():
     except sqlite3.Error:
         table_exists = None
 
-    # If tables already exist, close and skip initialization
     if table_exists:
         conn.close()
         return
 
-    # Enable foreign keys and build schema
     cursor.execute("PRAGMA foreign_keys = ON;")
 
     cursor.execute("""
@@ -63,7 +61,6 @@ def initialize_database_if_not_exists():
     );
     """)
 
-    # Populate Data strictly in English
     departments = [("AI",), ("Computer Science",), ("Software Engineering",)]
     cursor.executemany("INSERT OR IGNORE INTO Departments (department_name) VALUES (?);", departments)
 
@@ -127,14 +124,14 @@ def generate_sql_query(user_question):
     initialize_database_if_not_exists()
     llm = get_llm_engine()
 
-    prompt_template = """You are a precise text-to-SQL translator. Convert the user's question into a valid, executable SQLite query.
+    prompt_template = """You are a precise text-to-SQL translator. Convert the user's question into a valid SQLite query.
 Output ONLY the raw SQL code starting with SELECT. No markdown code blocks, no commentary, no triple backticks.
 
 Database Tables and Columns:
-1. Departments: department_id, department_name
-2. Students: student_id, student_name, department_id
-3. Courses: course_id, course_name, credit_hours
-4. Enrollments: enrollment_id, student_id, course_id, grade_numeric, grade_letter
+- Departments (department_id, department_name)
+- Students (student_id, student_name, department_id)
+- Courses (course_id, course_name, credit_hours)
+- Enrollments (enrollment_id, student_id, course_id, grade_numeric, grade_letter)
 
 Question: {question}
 SQL:"""
@@ -142,7 +139,7 @@ SQL:"""
     prompt = PromptTemplate(input_variables=["question"], template=prompt_template)
     raw_response = llm.invoke(prompt.format(question=user_question))
     
-    # Clean output strictly
+    # Strict response cleaning
     sql_query = raw_response.strip()
     if "```sql" in sql_query:
         sql_query = sql_query.split("```sql")[-1].split("```")[0].strip()
@@ -152,9 +149,11 @@ SQL:"""
     if "SELECT" in sql_query:
         sql_query = "SELECT" + sql_query.split("SELECT", 1)[1]
 
+    # Clean any trailing explanation or question marks
     sql_query = sql_query.split("\n")[0].strip()
-    
-    if sql_query.endswith(";"):
-        sql_query = sql_query[:-1].strip()
+    if "?" in sql_query:
+        sql_query = sql_query.split("?")[0].strip()
+    if ";" in sql_query:
+        sql_query = sql_query.split(";")[0].strip()
         
     return sql_query
