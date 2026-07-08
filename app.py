@@ -29,7 +29,7 @@ with st.sidebar:
 # User Input Layout
 user_question = st.text_input(
     "Enter your question here:",
-    placeholder="e.g., How many students are in Computer Science department?"
+    placeholder="e.g., Show me all students who got an A grade"
 )
 
 if user_question:
@@ -42,8 +42,8 @@ if user_question:
             st.subheader("🤖 Generated SQL Query:")
             st.code(sql_query, language="sql")
             
-            # 2. Execute query against SQLite database
-            conn = sqlite3.connect("university.db")
+            # 2. Execute query against the fresh SQLite database v2
+            conn = sqlite3.connect("university_v2.db")
             df = pd.read_sql_query(sql_query, conn)
             conn.close()
             
