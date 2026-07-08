@@ -1,6 +1,6 @@
 import os
 import sqlite3
-from importlib import import_module # تم إضافة هذا السطر البرمجي لإصلاح الخطأ السحابي
+from importlib import import_module
 from langchain_community.llms import HuggingFaceHub
 from langchain_core.prompts import PromptTemplate
 
@@ -55,7 +55,7 @@ def initialize_database_if_not_exists():
     );
     """)
 
-    # ضخ البيانات الأكاديمية (3 أقسام، 4 مواد، و20 طالباً مع درجاتهم بالتفصيل)
+    # ضخ البيانات الأكاديمية لـ 20 طالباً بالتفصيل
     departments = [("ذكاء اصطناعي",), ("علوم حاسوب",), ("هندسة برمجيات",)]
     cursor.executemany("INSERT INTO Departments (department_name) VALUES (?);", departments)
 
@@ -94,7 +94,7 @@ def initialize_database_if_not_exists():
     conn.close()
 
 def get_llm_engine():
-    """استدعاء المفتاح الرقمي بأمان وتشغيل نموذج كود كوين السحابي المتخصص."""
+    """استدعاء المفتاح الرقمي بأمان وتشغيل نموذج كود كوين السحابي وفق التحديث الرسمي للأسرار."""
     token = os.environ.get("HF_TOKEN")
     if not token:
         try:
@@ -107,10 +107,15 @@ def get_llm_engine():
     if not token:
         raise ValueError("⚠️ لم يتم العثور على مفتاح 'HF_TOKEN' في الإعدادات السحابية المحمية.")
 
+    # تأمين التعرف التلقائي للمكتبة من خلال تعيين متغيرات البيئة بالنظام سحابياً
+    os.environ["HUGGINGFACEHUB_API_TOKEN"] = token
+    os.environ["HF_TOKEN"] = token
+
+    # استدعاء النموذج باستخدام التوثيق المحدث (api_key لإنهاء تعارض المعاملات القديمة)
     return HuggingFaceHub(
         repo_id="Qwen/Qwen2.5-Coder-7B-Instruct",
         model_kwargs={"temperature": 0.1, "max_new_tokens": 150},
-        huggingfacehub_api_token=token
+        api_key=token
     )
 
 def generate_sql_query(user_question):
@@ -127,7 +132,7 @@ def generate_sql_query(user_question):
     4. Table "Enrollments": enrollment_id (INTEGER PRIMARY KEY), student_id (INTEGER, FOREIGN KEY), course_id (INTEGER, FOREIGN KEY), grade_numeric (REAL), grade_letter (TEXT)
 
     Examples:
-    Question: كم عدد الطلاب في قسم علوم حاسوب؟
+    Question: كم عدد الطلاب في قسم علوم حاسوب?
     SQL: SELECT COUNT(*) FROM Students WHERE department_id = (SELECT department_id FROM Departments WHERE department_name = 'علوم حاسوب');
 
     User Question: {question}
