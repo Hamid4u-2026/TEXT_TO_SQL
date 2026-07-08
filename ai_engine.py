@@ -4,22 +4,18 @@ from importlib import import_module
 from huggingface_hub import InferenceClient
 
 def initialize_database_if_not_exists():
-    """Initializes the SQLite database with English records if tables do not exist."""
+    """Forces a fresh creation of the database to guarantee it contains records."""
     db_name = "university_v2.db"
     
+    # Force delete the database file if it exists to clean any broken state
+    if os.path.exists(db_name):
+        try:
+            os.remove(db_name)
+        except Exception:
+            pass
+
     conn = sqlite3.connect(db_name)
     cursor = conn.cursor()
-    
-    try:
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Students';")
-        table_exists = cursor.fetchone()
-    except sqlite3.Error:
-        table_exists = None
-
-    if table_exists:
-        conn.close()
-        return
-
     cursor.execute("PRAGMA foreign_keys = ON;")
 
     cursor.execute("""
@@ -97,7 +93,7 @@ def initialize_database_if_not_exists():
     conn.close()
 
 def generate_sql_query(user_question):
-    """Generates a perfectly cleaned SQLite query supporting both Arabic and English inputs."""
+    """Generates clean SQL from user questions."""
     initialize_database_if_not_exists()
     
     token = os.environ.get("HF_TOKEN")
@@ -110,14 +106,12 @@ def generate_sql_query(user_question):
             pass
             
     if not token:
-        raise ValueError("Token HF_TOKEN not found in Streamlit Secrets.")
+        raise ValueError("Token HF_TOKEN not found.")
 
     client = InferenceClient(token=token)
     
-    prompt = f"""You are an elite Text-to-SQL translator for an academic SQLite database.
-Convert the user question (which could be in Arabic or English) into a valid, executable SQL query.
-
-CRITICAL MAPPING RULE:
+    prompt = f"""You are a Text-to-SQL translator. Convert the question into a valid SQLite query.
+CRITICAL MAPPING:
 - 'AI' or 'ذكاء اصطناعي' -> 'AI'
 - 'Computer Science' or 'علوم حاسوب' -> 'Computer Science'
 - 'Software Engineering' or 'هندسة برمجيات' -> 'Software Engineering'
@@ -126,8 +120,7 @@ CRITICAL MAPPING RULE:
 - 'Databases' or 'قواعد البيانات' -> 'Databases'
 - 'Systems Analysis' or 'تحليل النظم' -> 'Systems Analysis'
 
-OUTPUT FORMAT:
-Output ONLY the raw SQL code string. Do NOT enclose it in markdown blocks (no ```sql), no commentary, no explanations. It must start directly with SELECT.
+Output ONLY the raw SQL code string starting with SELECT. No markdown, no comments.
 
 Database Schema:
 - Departments (department_id, department_name)
@@ -145,7 +138,6 @@ SQL:"""
         temperature=0.1
     )
     
-    # Advanced strict cleaning for query execution safety
     sql_query = response.strip()
     if "```sql" in sql_query:
         sql_query = sql_query.split("```sql")[-1].split("```")[0].strip()
