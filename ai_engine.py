@@ -5,10 +5,7 @@ from langchain_community.llms import HuggingFaceHub
 from langchain_core.prompts import PromptTemplate
 
 def initialize_database_if_not_exists():
-    """
-    تتحقق هذه الدالة من وجود قاعدة البيانات سحابياً، وإذا لم تكن موجودة
-    تقوم بإنشائها وتغذيتها ببيانات 20 طالباً تلقائياً لضمان استقرار السيرفر.
-    """
+    """التحقق من وجود قاعدة البيانات وضخ بيانات 20 طالباً."""
     db_name = "university.db"
     if os.path.exists(db_name):
         return
@@ -17,7 +14,6 @@ def initialize_database_if_not_exists():
     cursor = conn.cursor()
     cursor.execute("PRAGMA foreign_keys = ON;")
 
-    # إنشاء الجداول الأربعة المترابطة
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS Departments (
         department_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -55,7 +51,6 @@ def initialize_database_if_not_exists():
     );
     """)
 
-    # ضخ البيانات الأكاديمية لـ 20 طالباً بالتفصيل
     departments = [("ذكاء اصطناعي",), ("علوم حاسوب",), ("هندسة برمجيات",)]
     cursor.executemany("INSERT INTO Departments (department_name) VALUES (?);", departments)
 
@@ -94,7 +89,7 @@ def initialize_database_if_not_exists():
     conn.close()
 
 def get_llm_engine():
-    """استدعاء المفتاح الرقمي بأمان وتشغيل نموذج كود كوين السحابي وفق التحديث الرسمي للأسرار."""
+    """تهيئة محرك الاستدلال لـ HuggingFaceHub وفقاً لآخر التحديثات."""
     token = os.environ.get("HF_TOKEN")
     if not token:
         try:
@@ -105,45 +100,54 @@ def get_llm_engine():
             pass
         
     if not token:
-        raise ValueError("⚠️ لم يتم العثور على مفتاح 'HF_TOKEN' في الإعدادات السحابية المحمية.")
+        raise ValueError("⚠️ لم يتم العثور على مفتاح 'HF_TOKEN'.")
 
-    # تأمين التعرف التلقائي للمكتبة من خلال تعيين متغيرات البيئة بالنظام سحابياً
     os.environ["HUGGINGFACEHUB_API_TOKEN"] = token
-    os.environ["HF_TOKEN"] = token
-
-    # استدعاء النموذج باستخدام التوثيق المحدث (api_key لإنهاء تعارض المعاملات القديمة)
     return HuggingFaceHub(
         repo_id="Qwen/Qwen2.5-Coder-7B-Instruct",
-        model_kwargs={"temperature": 0.1, "max_new_tokens": 150},
+        model_kwargs={"temperature": 0.1, "max_new_tokens": 100},
         api_key=token
     )
 
 def generate_sql_query(user_question):
-    """تحويل السؤال باللغة العربية الفصحى إلى استعلام SQL عبر هندسة الأوامر المتقدمة."""
+    """توليد كود SQL نقي وصارم متوافق مع استعلامات قاعدة بيانات الجامعة."""
     initialize_database_if_not_exists()
     llm = get_llm_engine()
 
-    prompt_template = """Analyse the user question and convert it into a valid SQLite query based on the following database schema. Return only the SQL query, without markdown or formatting.
+    # قالب أوامر مبسط وصارم ومكتوب باللغة الإنجليزية لضمان عدم تخريف مخرجات النموذج
+    prompt_template = """You are a text-to-SQL translator. Convert the Arabic question into a single raw SQLite query.
+Do not include markdown blocks, explanation, or HTML.
 
-    Database Schema:
-    1. Table "Departments": department_id (INTEGER PRIMARY KEY), department_name (TEXT)
-    2. Table "Students": student_id (INTEGER PRIMARY KEY), student_name (TEXT), department_id (INTEGER, FOREIGN KEY)
-    3. Table "Courses": course_id (INTEGER PRIMARY KEY), course_name (TEXT), credit_hours (INTEGER)
-    4. Table "Enrollments": enrollment_id (INTEGER PRIMARY KEY), student_id (INTEGER, FOREIGN KEY), course_id (INTEGER, FOREIGN KEY), grade_numeric (REAL), grade_letter (TEXT)
+Database Tables:
+1. Departments: department_id, department_name
+2. Students: student_id, student_name, department_id
+3. Courses: course_id, course_name, credit_hours
+4. Enrollments: enrollment_id, student_id, course_id, grade_numeric, grade_letter
 
-    Examples:
-    Question: كم عدد الطلاب في قسم علوم حاسوب?
-    SQL: SELECT COUNT(*) FROM Students WHERE department_id = (SELECT department_id FROM Departments WHERE department_name = 'علوم حاسوب');
+Example:
+Question: كم عدد الطلاب في قسم علوم حاسوب؟
+SQL: SELECT COUNT(*) FROM Students WHERE department_id = (SELECT department_id FROM Departments WHERE department_name = 'علوم حاسوب');
 
-    User Question: {question}
-    SQL:"""
+Question: {question}
+SQL:"""
 
     prompt = PromptTemplate(input_variables=["question"], template=prompt_template)
     raw_response = llm.invoke(prompt.format(question=user_question))
     
+    # آلية تنظيف برمجية صارمة للتخلص من الأقواس وعلامات الاقتباس المائلة الناتجة عن النماذج السحابية
     sql_query = raw_response.strip()
+    
+    # إذا قام النموذج بوضع مخرجاته داخل بلوك كود مائل يتم قصه فوراً
     if "```sql" in sql_query:
         sql_query = sql_query.split("```sql")[-1].split("```")[0].strip()
     elif "```" in sql_query:
         sql_query = sql_query.split("```")[1].strip()
+        
+    # إزالة أي نصوص زائدة قد يضيفها النموذج في السطر الجديد
+    sql_query = sql_query.split("\n")[0].strip()
+    
+    # إزالة الفاصلة المنقوطة إن وجدت لتجنب أخطاء برامج القراءة
+    if sql_query.endswith(";"):
+        sql_query = sql_query[:-1].strip()
+        
     return sql_query
