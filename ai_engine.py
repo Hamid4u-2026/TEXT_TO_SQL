@@ -1,12 +1,10 @@
 import os
 import sqlite3
 from importlib import import_module
-from langchain_community.llms import HuggingFaceHub
-from langchain_core.prompts import PromptTemplate
+from huggingface_hub import InferenceClient
 
 def initialize_database_if_not_exists():
     """Initializes the SQLite database with English records if tables do not exist."""
-    # Changed DB name to force creating a new fresh file on Streamlit Cloud
     db_name = "university_v2.db"
     
     conn = sqlite3.connect(db_name)
@@ -98,8 +96,11 @@ def initialize_database_if_not_exists():
     conn.commit()
     conn.close()
 
-def get_llm_engine():
-    """Initializes HuggingFaceHub Inference Client."""
+def generate_sql_query(user_question):
+    """Generates SQL query using the official huggingface_hub InferenceClient."""
+    initialize_database_if_not_exists()
+    
+    # Securely fetch token
     token = os.environ.get("HF_TOKEN")
     if not token:
         try:
@@ -108,39 +109,35 @@ def get_llm_engine():
                 token = streamlit_mod.secrets["HF_TOKEN"]
         except ImportError:
             pass
-        
+            
     if not token:
-        raise ValueError("Token HF_TOKEN not found.")
+        raise ValueError("Token HF_TOKEN not found in Streamlit Secrets.")
 
-    os.environ["HUGGINGFACEHUB_API_TOKEN"] = token
-    return HuggingFaceHub(
-        repo_id="Qwen/Qwen2.5-Coder-7B-Instruct",
-        model_kwargs={"temperature": 0.1, "max_new_tokens": 100},
-        api_key=token
-    )
+    # Initialize the official clean client
+    client = InferenceClient(token=token)
+    
+    prompt = f"""You are a precise text-to-SQL translator. Convert the question into a valid SQLite query starting with SELECT.
+Output ONLY raw SQL. No explanation, no markdown formatting.
 
-def generate_sql_query(user_question):
-    """Generates a strict and clean SQL query from English text input."""
-    initialize_database_if_not_exists()
-    llm = get_llm_engine()
-
-    prompt_template = """You are a precise text-to-SQL translator. Convert the user's question into a valid SQLite query.
-Output ONLY the raw SQL code starting with SELECT. No markdown code blocks, no commentary, no triple backticks.
-
-Database Tables and Columns:
+Database Schema:
 - Departments (department_id, department_name)
 - Students (student_id, student_name, department_id)
 - Courses (course_id, course_name, credit_hours)
 - Enrollments (enrollment_id, student_id, course_id, grade_numeric, grade_letter)
 
-Question: {question}
+Question: {user_question}
 SQL:"""
 
-    prompt = PromptTemplate(input_variables=["question"], template=prompt_template)
-    raw_response = llm.invoke(prompt.format(question=user_question))
+    # Direct cloud inference call
+    response = client.text_generation(
+        prompt=prompt,
+        model="Qwen/Qwen2.5-Coder-7B-Instruct",
+        max_new_tokens=100,
+        temperature=0.1
+    )
     
     # Strict response cleaning
-    sql_query = raw_response.strip()
+    sql_query = response.strip()
     if "```sql" in sql_query:
         sql_query = sql_query.split("```sql")[-1].split("```")[0].strip()
     elif "```" in sql_query:
@@ -149,7 +146,6 @@ SQL:"""
     if "SELECT" in sql_query:
         sql_query = "SELECT" + sql_query.split("SELECT", 1)[1]
 
-    # Clean any trailing explanation or question marks
     sql_query = sql_query.split("\n")[0].strip()
     if "?" in sql_query:
         sql_query = sql_query.split("?")[0].strip()
