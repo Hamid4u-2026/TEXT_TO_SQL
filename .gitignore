@@ -1,4 +1,38 @@
-university.db
-.streamlit/secrets.toml
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual Environment
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# Secrets
+.env
+*.key
+*.pem
+*.crt
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# System Files
+.DS_Store
+Thumbs.db
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Streamlit
+.streamlit/
